@@ -11,7 +11,6 @@
     <meta name="mobile-web-app-capable" content="yes">
     
     <!-- 圖示設定：縮小置中優化版 -->
-    <!-- 背景色 #FF8400, 圖示縮小至 65% 並置中 -->
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect width=%22100%22 height=%22100%22 fill=%22%23FF8400%22/><text y=%2250%%22 x=%2250%%22 dominant-baseline=%22central%22 text-anchor=%22middle%22 font-size=%2265%22>🥘</text></svg>">
     <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect width=%22100%22 height=%22100%22 fill=%22%23FF8400%22/><text y=%2250%%22 x=%2250%%22 dominant-baseline=%22central%22 text-anchor=%22middle%22 font-size=%2265%22>🥘</text></svg>">
 
@@ -47,6 +46,10 @@
         .cartoon-btn {
             border: 2px solid #333;
             box-shadow: 3px 3px 0px #333;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
         }
 
         .cartoon-btn:active {
@@ -101,7 +104,7 @@
             <input id="customName" type="text" placeholder="食材叫什麼？" class="w-full bg-orange-50 rounded-xl p-3 border-2 border-slate-800 outline-none focus:bg-white transition-all text-md font-bold">
             <input id="customTime" type="number" placeholder="要煮幾秒？" class="w-full bg-orange-50 rounded-xl p-3 border-2 border-slate-800 outline-none focus:bg-white transition-all text-md font-bold">
             <button onclick="addFood()" class="w-full bg-yellow-400 hover:bg-yellow-300 text-slate-800 font-black py-3 rounded-xl active:scale-95 transition-all cartoon-btn text-lg tracking-widest">
-                丟進鍋裡！
+                <span>🔥</span> 丟進鍋裡！
             </button>
         </div>
     </section>
@@ -113,8 +116,12 @@
             <input id="editName" type="text" class="w-full bg-slate-100 rounded-xl p-3 mb-3 border-2 border-slate-800 font-bold outline-none">
             <input id="editSec" type="number" class="w-full bg-slate-100 rounded-xl p-3 mb-5 border-2 border-slate-800 font-bold outline-none">
             <div class="flex gap-3">
-                <button onclick="closeEdit()" class="flex-1 bg-slate-200 text-slate-500 font-black py-3 rounded-xl cartoon-btn">算了</button>
-                <button onclick="confirmEdit()" class="flex-1 bg-green-400 text-white font-black py-3 rounded-xl cartoon-btn">改好了！</button>
+                <button onclick="closeEdit()" class="flex-1 bg-slate-200 text-slate-500 font-black py-3 rounded-xl cartoon-btn">
+                    <span>❌</span> 算了
+                </button>
+                <button onclick="confirmEdit()" class="flex-1 bg-green-400 text-white font-black py-3 rounded-xl cartoon-btn">
+                    <span>✅</span> 改好了！
+                </button>
             </div>
         </div>
     </div>
@@ -122,10 +129,10 @@
     <!-- 底部控制欄 -->
     <div class="fixed bottom-4 left-4 right-4 flex gap-3 z-[500]">
         <button onclick="resetAll()" class="flex-[2] bg-red-500 text-white font-black py-4 rounded-[1.5rem] cartoon-btn text-lg uppercase tracking-widest">
-            全部停下！🛑
+            <span>🛑</span> 全部停下！
         </button>
         <button onclick="restoreDefaults()" class="flex-1 bg-white text-slate-400 font-bold py-4 rounded-[1.5rem] cartoon-btn text-[10px] uppercase">
-            重來啦
+            <span>♻️</span> 重來啦
         </button>
     </div>
 
@@ -172,8 +179,8 @@
                         <div id="prog-${f.id}" class="absolute bottom-0 left-0 h-1.5 bg-orange-400 w-0 transition-all duration-1000"></div>
                     </div>
                     <div class="flex gap-1">
-                        <button onclick="event.stopPropagation(); openEdit('${f.id}')" class="flex-1 py-1.5 bg-blue-50 rounded-lg text-[10px] font-black text-blue-600 cartoon-btn uppercase">改</button>
-                        <button onclick="event.stopPropagation(); removeFood('${f.id}')" class="flex-1 py-1.5 bg-red-50 rounded-lg text-[10px] font-black text-red-500 cartoon-btn uppercase">刪</button>
+                        <button onclick="event.stopPropagation(); openEdit('${f.id}')" class="flex-1 py-1.5 bg-blue-50 rounded-lg text-[10px] font-black text-blue-600 cartoon-btn uppercase"><span>✏️</span> 改</button>
+                        <button onclick="event.stopPropagation(); removeFood('${f.id}')" class="flex-1 py-1.5 bg-red-50 rounded-lg text-[10px] font-black text-red-500 cartoon-btn uppercase"><span>🗑️</span> 刪</button>
                     </div>
                 `;
                 grid.appendChild(col);
