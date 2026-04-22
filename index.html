@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    
+    <!-- 行動裝置 App 化標籤 -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="火鍋大師">
+    <meta name="mobile-web-app-capable" content="yes">
+    <!-- 圖示 (使用 Emoji 作為示意) -->
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🔥</text></svg>">
+    <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🔥</text></svg>">
+
+    <title>火鍋計時大師</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @keyframes breathe {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.8; transform: scale(0.97); }
+        }
+        @keyframes flash {
+            0%, 100% { background-color: rgba(239, 68, 68, 1); }
+            50% { background-color: rgba(127, 29, 29, 1); }
+        }
+        .timer-active {
+            animation: breathe 2s infinite ease-in-out;
+            border-color: white !important;
+            box-shadow: 0 0 15px rgba(255, 255, 255, 0.3);
+        }
+        .timer-finished {
+            animation: flash 0.5s infinite;
+            border-color: white !important;
+        }
+        /* 優化行動端點擊 */
+        * {
+            -webkit-touch-callout: none;
+            -webkit-user-select: none;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+        input {
+            -webkit-user-select: text;
+            user-select: text;
+        }
+    </style>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen font-sans p-4 pb-28">
+
+    <!-- Header -->
+    <header class="text-center mb-6 pt-4">
+        <h1 class="text-3xl font-bold text-red-500 mb-2">🔥 火鍋計時大師</h1>
+        <p class="text-slate-400 text-sm italic">精準掌握黃金秒數，拒絕燙老食材</p>
+    </header>
+
+    <!-- Timer Grid -->
+    <div id="timerGrid" class="grid grid-cols-2 gap-4 mb-8">
+        <!-- 食材按鈕將由 JavaScript 生成 -->
+    </div>
+
+    <!-- Custom Adder -->
+    <section class="bg-slate-800 p-5 rounded-2xl shadow-2xl mb-6 border border-slate-700">
+        <h2 class="text-lg font-semibold mb-4 flex items-center">
+            <span class="mr-2">➕</span> 新增自定義食材
+        </h2>
+        <div class="flex flex-col gap-3">
+            <div class="flex gap-2">
+                <input id="customName" type="text" placeholder="食材名稱" 
+                       class="flex-1 bg-slate-700 border-none rounded-xl p-3 text-white focus:ring-2 focus:ring-red-500 outline-none placeholder:text-slate-500">
+                <input id="customTime" type="number" placeholder="秒數" 
+                       class="w-24 bg-slate-700 border-none rounded-xl p-3 text-white focus:ring-2 focus:ring-red-500 outline-none placeholder:text-slate-500">
+            </div>
+            <button onclick="addCustomTimer()" 
+                    class="w-full bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 text-white font-bold py-3 rounded-xl transition-all shadow-lg active:scale-[0.98]">
+                加入清單
+            </button>
+        </div>
+    </section>
+
+    <!-- Global Controls -->
+    <div class="fixed bottom-0 left-0 right-0 p-4 bg-slate-900/90 backdrop-blur-lg border-t border-slate-800 flex gap-4">
+        <button onclick="resetAllTimers()" 
+                class="flex-1 bg-slate-700 hover:bg-slate-600 text-white font-bold py-4 rounded-2xl shadow-lg active:scale-95 transition-all">
+            🔄 全部重置
+        </button>
+    </div>
+
+    <script>
+        // 更新後的食材清單
+        const defaultItems = [
+            { id: 'item1', name: '牛柏葉', seconds: 420, type: 'meat' }, // 7分鐘
+            { id: 'item2', name: '沙白', seconds: 180, type: 'seafood' },
+            { id: 'item3', name: '鮑魚', seconds: 300, type: 'seafood' },
+            { id: 'item4', name: '烏冬面', seconds: 300, type: 'veg' }   // 5分鐘
+        ];
+
+        const activeTimers = {}; 
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+        function getBorderClass(type) {
+            switch(type) {
+                case 'meat': return 'border-red-500/50 text-red-100';
+                case 'seafood': return 'border-blue-500/50 text-blue-100';
+                case 'veg': return 'border-green-500/50 text-green-100';
+                default: return 'border-slate-500/50 text-slate-100';
+            }
+        }
+
+        // 格式化時間 (分:秒)
+        function formatTime(s) {
+            if (s <= 0) return "完成！";
+            const mins = Math.floor(s / 60);
+            const secs = s % 60;
+            return mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
+        }
+
+        // Web Audio API 發聲
+        function playBeep() {
+            try {
+                if (audioCtx.state === 'suspended') audioCtx.resume();
+                const oscillator = audioCtx.createOscillator();
+                const gainNode = audioCtx.createGain();
+                oscillator.type = 'sine';
+                oscillator.frequency.setValueAtTime(880, audioCtx.currentTime); 
+                gainNode.gain.setValueAtTime(0, audioCtx.currentTime);
+                gainNode.gain.linearRampToValueAtTime(0.5, audioCtx.currentTime + 0.05);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.5);
+                oscillator.connect(gainNode);
+                gainNode.connect(audioCtx.destination);
+                oscillator.start();
+                oscillator.stop(audioCtx.currentTime + 0.5);
+            } catch (e) { console.error("Audio error", e); }
+        }
+
+        function createTimerElement(item) {
+            const grid = document.getElementById('timerGrid');
+            const borderClass = getBorderClass(item.type);
+            
+            const btn = document.createElement('button');
+            btn.id = `btn-${item.id}`;
+            btn.dataset.originalSeconds = item.seconds;
+            btn.className = `relative flex flex-col items-center justify-center p-6 border-2 rounded-2xl transition-all duration-300 ${borderClass} bg-slate-800 shadow-lg active:scale-95 overflow-hidden`;
+            btn.innerHTML = `
+                <span class="text-xl font-bold mb-1">${item.name}</span>
+                <span id="display-${item.id}" class="text-sm font-mono font-medium opacity-80">${formatTime(item.seconds)}</span>
+                <div id="progress-${item.id}" class="absolute bottom-0 left-0 h-1.5 bg-current opacity-30 w-0 transition-all"></div>
+            `;
+            
+            btn.onclick = () => handleTimerClick(item.id, item.seconds);
+            grid.appendChild(btn);
+        }
+
+        function handleTimerClick(id, totalSeconds) {
+            const btn = document.getElementById(`btn-${id}`);
+            
+            // 如果已經結束，點擊重置
+            if (btn.classList.contains('timer-finished')) {
+                resetTimer(id, totalSeconds);
+                return;
+            }
+
+            // 如果正在計時，點擊停止
+            if (activeTimers[id]) {
+                stopTimer(id, totalSeconds);
+                return;
+            }
+
+            // 開始計時
+            startTimer(id, totalSeconds);
+        }
+
+        function startTimer(id, totalSeconds) {
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            
+            let timeLeft = totalSeconds;
+            const btn = document.getElementById(`btn-${id}`);
+            const display = document.getElementById(`display-${id}`);
+            const progress = document.getElementById(`progress-${id}`);
+
+            btn.classList.add('timer-active');
+            
+            activeTimers[id] = setInterval(() => {
+                timeLeft--;
+                display.innerText = formatTime(timeLeft);
+                
+                const percent = ((totalSeconds - timeLeft) / totalSeconds) * 100;
+                progress.style.width = `${percent}%`;
+
+                if (timeLeft <= 0) {
+                    triggerAlarm(id, totalSeconds);
+                }
+            }, 1000);
+        }
+
+        function triggerAlarm(id, totalSeconds) {
+            clearInterval(activeTimers[id]);
+            delete activeTimers[id];
+
+            const btn = document.getElementById(`btn-${id}`);
+            const display = document.getElementById(`display-${id}`);
+            
+            btn.classList.remove('timer-active');
+            btn.classList.add('timer-finished');
+            display.innerText = "完成！";
+
+            // 震動
+            if (navigator.vibrate) navigator.vibrate([500, 200, 500]);
+            playBeep();
+            
+            // 循環提醒直到使用者點擊
+            const alarmInterval = setInterval(() => {
+                if (!btn.classList.contains('timer-finished')) {
+                    clearInterval(alarmInterval);
+                    return;
+                }
+                playBeep();
+                if (navigator.vibrate) navigator.vibrate(200);
+            }, 2500);
+        }
+
+        function stopTimer(id, originalSeconds) {
+            clearInterval(activeTimers[id]);
+            delete activeTimers[id];
+            resetTimer(id, originalSeconds);
+        }
+
+        function resetTimer(id, originalSeconds) {
+            const btn = document.getElementById(`btn-${id}`);
+            const display = document.getElementById(`display-${id}`);
+            const progress = document.getElementById(`progress-${id}`);
+
+            btn.classList.remove('timer-active', 'timer-finished');
+            display.innerText = formatTime(originalSeconds);
+            progress.style.width = '0%';
+        }
+
+        function resetAllTimers() {
+            Object.keys(activeTimers).forEach(id => {
+                clearInterval(activeTimers[id]);
+                delete activeTimers[id];
+            });
+            
+            const allBtns = document.querySelectorAll('[id^="btn-"]');
+            allBtns.forEach(btn => {
+                const id = btn.id.replace('btn-', '');
+                const originalSeconds = parseInt(btn.dataset.originalSeconds);
+                resetTimer(id, originalSeconds);
+            });
+        }
+
+        function addCustomTimer() {
+            const nameInput = document.getElementById('customName');
+            const timeInput = document.getElementById('customTime');
+            
+            const name = nameInput.value.trim();
+            const seconds = parseInt(timeInput.value);
+
+            if (!name || isNaN(seconds) || seconds <= 0) return;
+
+            const newItem = {
+                id: 'custom-' + Date.now(),
+                name: name,
+                seconds: seconds,
+                type: 'custom'
+            };
+
+            createTimerElement(newItem);
+            nameInput.value = '';
+            timeInput.value = '';
+        }
+
+        // 初始化
+        window.onload = () => {
+            defaultItems.forEach(item => createTimerElement(item));
+        };
+    </script>
+</body>
+</html>
