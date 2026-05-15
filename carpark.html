@@ -1,0 +1,456 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Parking Helper — Fee Calculator & Location</title>
+<style>
+  :root{--accent:#0b74de;--muted:#666;--bg:#f7f9fc}
+  body{font-family:Inter,system-ui,Segoe UI,Arial; margin:0; background:var(--bg); color:#111}
+  .app{max-width:980px;margin:28px auto;padding:20px;background:#fff;border-radius:12px;box-shadow:0 6px 24px rgba(12,20,40,.06)}
+  h1{font-size:20px;margin:0 0 12px}
+  .row{display:flex;gap:12px;align-items:center}
+  .col{flex:1}
+  .card{background:#fff;padding:14px;border-radius:10px;border:1px solid #eef2f6}
+  label{display:block;font-size:13px;color:var(--muted);margin-bottom:6px}
+  input,select,button,textarea{width:100%;padding:10px;border-radius:8px;border:1px solid #dbe6f2;font-size:14px}
+  button{background:var(--accent);color:#fff;border:none;cursor:pointer}
+  .muted{color:var(--muted);font-size:13px}
+  .big{font-size:28px;font-weight:600}
+  .small{font-size:13px}
+  .map{height:220px;background:linear-gradient(90deg,#e6f0fb,#f8fbff);display:flex;align-items:center;justify-content:center;border-radius:8px;color:var(--muted)}
+  .controls{display:flex;gap:8px}
+  .chip{display:inline-block;padding:6px 10px;border-radius:999px;background:#f1f6fb;color:#0b74de;font-weight:600}
+  .timeline{height:8px;background:#eef6ff;border-radius:8px;overflow:hidden;margin-top:8px}
+  .timeline > i{display:block;height:100%;background:linear-gradient(90deg,#0b74de,#6fb3ff);width:0%}
+  .flex-between{display:flex;justify-content:space-between;align-items:center}
+  .photo-preview{height:64px;width:64px;border-radius:8px;object-fit:cover;border:1px solid #e6eef8}
+  .footer{margin-top:18px;font-size:13px;color:var(--muted)}
+  .rate-row{display:flex;gap:8px;align-items:center}
+  .rate-row > *{flex:1}
+  .small-btn{padding:8px 10px;background:#f3f7fb;border-radius:8px;border:1px solid #e6eef8;color:var(--accent);cursor:pointer}
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>Parking Helper — Fee Calculator & Location</h1>
+
+  <div class="row" style="margin-bottom:12px">
+    <div class="col card">
+      <div class="flex-between">
+        <div>
+          <div class="muted">Check‑in</div>
+          <div id="checkinTime" class="small">Not checked in</div>
+        </div>
+        <div style="text-align:right">
+          <div class="muted">Elapsed</div>
+          <div id="elapsed" class="big">00:00</div>
+        </div>
+      </div>
+
+      <div style="margin-top:12px" class="flex-between">
+        <div>
+          <div class="muted">Current fee</div>
+          <div id="currentFee" class="big">$0.00</div>
+        </div>
+        <div style="text-align:right">
+          <div class="muted">Target leave</div>
+          <div id="targetLeaveDisplay" class="small">—</div>
+        </div>
+      </div>
+
+      <div style="margin-top:12px" class="controls">
+        <button id="btnCheckin">Check in</button>
+        <button id="btnCheckout" class="small-btn">Check out</button>
+        <button id="btnSave" class="small-btn">Save spot</button>
+      </div>
+
+      <div style="margin-top:12px">
+        <label>Target leave time</label>
+        <input id="targetLeave" type="datetime-local" />
+      </div>
+
+      <div style="margin-top:10px" class="muted small">Estimate panel</div>
+      <div id="estimateBreakdown" class="small card" style="margin-top:8px"></div>
+    </div>
+
+    <div class="col card">
+      <div>
+        <label>Charging scheme</label>
+        <select id="schemeType">
+          <option value="hourly">Hourly / per‑minute</option>
+          <option value="flat">Flat rate</option>
+          <option value="tiered">Tiered (free first N)</option>
+          <option value="daycap">Daily cap</option>
+          <option value="daynight">Day / Night differential</option>
+        </select>
+      </div>
+
+      <div id="schemeEditor" style="margin-top:10px">
+        <!-- dynamic editor -->
+      </div>
+
+      <div style="margin-top:10px" class="muted">Quick presets</div>
+      <div style="margin-top:8px" class="controls">
+        <button class="small-btn" data-min="30">30m</button>
+        <button class="small-btn" data-min="60">1h</button>
+        <button class="small-btn" data-min="120">2h</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="row" style="margin-top:12px">
+    <div class="col card">
+      <label>Parking location</label>
+      <div class="map" id="mapPlaceholder">Map placeholder — integrate Mapbox/Google Maps</div>
+      <div style="margin-top:8px">
+        <label>Address / Notes</label>
+        <input id="address" placeholder="Level B2, near elevator" />
+      </div>
+      <div style="margin-top:8px">
+        <label>Keywords / Tags</label>
+        <input id="keywords" placeholder="e.g., B2; elevator; EV charger" />
+      </div>
+      <div style="margin-top:8px">
+        <label>Photo (attach or take photo)</label>
+        <div style="display:flex;gap:8px;align-items:center">
+          <input id="photoInput" type="file" accept="image/*" capture="environment" />
+          <img id="photoPreview" class="photo-preview" src="" alt="" style="display:none" />
+        </div>
+      </div>
+    </div>
+
+    <div class="col card">
+      <label>Saved spots</label>
+      <div id="savedList" class="small muted">No saved spots yet</div>
+
+      <div style="margin-top:12px">
+        <label>Search saved spots</label>
+        <input id="searchSaved" placeholder="Search by keyword or date" />
+      </div>
+
+      <div style="margin-top:12px" class="muted">Actions</div>
+      <div style="margin-top:8px" class="controls">
+        <button id="btnNavigate" class="small-btn">Navigate</button>
+        <button id="btnShare" class="small-btn">Share</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">Tip: replace the map placeholder with Mapbox or Google Maps SDK and add your API key in the script section.</div>
+</div>
+
+<script>
+/* --- Simple rate engine supporting multiple schemes --- */
+const state = {
+  checkin: null,
+  checkout: null,
+  targetLeave: null,
+  scheme: {
+    type: 'hourly',
+    hourlyRate: 10.0,        // per hour
+    perMinute: null,         // optional per-minute override
+    flatRate: 20.0,
+    tiered: { freeMinutes: 15, rateAfter: 5.0 }, // $ per hour after free
+    dayCap: 80.0,
+    dayRate: 8.0, nightRate: 4.0,
+    nightStart: 22, nightEnd: 7,
+    graceMinutes: 10,
+    penalty: 50.0
+  },
+  savedSpots: []
+};
+
+function nowIsoLocal(d=new Date()){
+  const tzOffset = d.getTimezoneOffset()*60000;
+  return new Date(d - tzOffset).toISOString().slice(0,16);
+}
+
+function formatMoney(v){ return '$' + v.toFixed(2); }
+function formatElapsed(ms){
+  if(!ms) return '00:00';
+  const s = Math.floor(ms/1000);
+  const m = Math.floor(s/60);
+  const h = Math.floor(m/60);
+  const mm = String(m%60).padStart(2,'0');
+  const hh = String(h).padStart(2,'0');
+  return hh + ':' + mm;
+}
+
+function computeFee(start, end, scheme){
+  // returns {total, breakdown: [{label, amount}], appliedCap:boolean}
+  const breakdown = [];
+  let total = 0;
+  const ms = end - start;
+  if(ms <= 0) return {total:0, breakdown, appliedCap:false};
+  const minutes = Math.ceil(ms/60000);
+  // Flat
+  if(scheme.type === 'flat'){
+    total = scheme.flatRate;
+    breakdown.push({label:'Flat rate', amount:scheme.flatRate});
+  }
+  // Hourly / per-minute
+  else if(scheme.type === 'hourly'){
+    const perMin = scheme.perMinute ?? (scheme.hourlyRate/60);
+    total = perMin * minutes;
+    breakdown.push({label:`${perMin.toFixed(3)} per min × ${minutes} min`, amount: total});
+  }
+  // Tiered
+  else if(scheme.type === 'tiered'){
+    const free = scheme.tiered.freeMinutes || 0;
+    if(minutes <= free){
+      total = 0;
+      breakdown.push({label:`First ${free} min free`, amount:0});
+    } else {
+      const chargeMin = minutes - free;
+      const perMin = (scheme.tiered.rateAfter/60);
+      total = perMin * chargeMin;
+      breakdown.push({label:`Free ${free} min`, amount:0});
+      breakdown.push({label:`Tiered rate ${scheme.tiered.rateAfter}/hr × ${chargeMin} min`, amount: total});
+    }
+  }
+  // Day cap
+  else if(scheme.type === 'daycap'){
+    const perMin = scheme.perMinute ?? (scheme.dayRate/60);
+    total = perMin * minutes;
+    breakdown.push({label:`Per-minute ${perMin.toFixed(3)} × ${minutes} min`, amount: total});
+    if(total > scheme.dayCap){
+      breakdown.push({label:'Daily cap applied', amount: scheme.dayCap - total});
+      total = scheme.dayCap;
+      return {total, breakdown, appliedCap:true};
+    }
+  }
+  // Day/night differential
+  else if(scheme.type === 'daynight'){
+    // split minutes into day/night by hour (simple approximation)
+    let cursor = new Date(start);
+    let remaining = minutes;
+    while(remaining > 0){
+      const hour = cursor.getHours();
+      const isNight = (scheme.nightStart <= scheme.nightEnd)
+        ? (hour >= scheme.nightStart && hour < scheme.nightEnd)
+        : (hour >= scheme.nightStart || hour < scheme.nightEnd);
+      const rate = isNight ? scheme.nightRate : scheme.dayRate;
+      // compute minutes until next hour or remaining
+      const nextHour = new Date(cursor);
+      nextHour.setMinutes(60,0,0);
+      const chunkMs = Math.min(nextHour - cursor, remaining*60000);
+      const chunkMin = Math.ceil(chunkMs/60000);
+      total += (rate/60) * chunkMin;
+      breakdown.push({label:`${isNight ? 'Night' : 'Day'} rate ${rate}/hr × ${chunkMin} min`, amount:(rate/60)*chunkMin});
+      cursor = new Date(cursor.getTime() + chunkMin*60000);
+      remaining -= chunkMin;
+    }
+  }
+
+  // Grace period handling is done outside (penalty)
+  // Apply daily cap if present
+  if(scheme.dayCap && total > scheme.dayCap){
+    total = scheme.dayCap;
+    breakdown.push({label:'Daily cap', amount:0});
+    return {total, breakdown, appliedCap:true};
+  }
+
+  return {total, breakdown, appliedCap:false};
+}
+
+/* --- UI wiring --- */
+const el = id => document.getElementById(id);
+const btnCheckin = el('btnCheckin'), btnCheckout = el('btnCheckout'), btnSave = el('btnSave');
+const checkinTimeEl = el('checkinTime'), elapsedEl = el('elapsed'), currentFeeEl = el('currentFee');
+const targetLeaveEl = el('targetLeave'), targetLeaveDisplay = el('targetLeaveDisplay'), estimateBreakdown = el('estimateBreakdown');
+const schemeType = el('schemeType'), schemeEditor = el('schemeEditor');
+const photoInput = el('photoInput'), photoPreview = el('photoPreview');
+const savedList = el('savedList'), addressInput = el('address'), keywordsInput = el('keywords');
+
+function renderSchemeEditor(){
+  const t = schemeType.value;
+  state.scheme.type = t;
+  let html = '';
+  if(t === 'hourly'){
+    html = `
+      <div class="rate-row">
+        <div><label>Hourly rate</label><input id="hourlyRate" type="number" step="0.01" value="${state.scheme.hourlyRate}" /></div>
+        <div><label>Per-minute (optional)</label><input id="perMinute" type="number" step="0.0001" placeholder="auto" /></div>
+      </div>
+    `;
+  } else if(t === 'flat'){
+    html = `<label>Flat rate</label><input id="flatRate" type="number" step="0.01" value="${state.scheme.flatRate}" />`;
+  } else if(t === 'tiered'){
+    html = `
+      <div class="rate-row">
+        <div><label>Free minutes</label><input id="freeMinutes" type="number" value="${state.scheme.tiered.freeMinutes}" /></div>
+        <div><label>Rate after (per hour)</label><input id="tierRate" type="number" step="0.01" value="${state.scheme.tiered.rateAfter}" /></div>
+      </div>
+    `;
+  } else if(t === 'daycap'){
+    html = `
+      <div class="rate-row">
+        <div><label>Per-hour rate</label><input id="dayRate" type="number" step="0.01" value="${state.scheme.dayRate}" /></div>
+        <div><label>Daily cap</label><input id="dayCap" type="number" step="0.01" value="${state.scheme.dayCap}" /></div>
+      </div>
+    `;
+  } else if(t === 'daynight'){
+    html = `
+      <div class="rate-row">
+        <div><label>Day rate (per hr)</label><input id="dayRate2" type="number" step="0.01" value="${state.scheme.dayRate}" /></div>
+        <div><label>Night rate (per hr)</label><input id="nightRate" type="number" step="0.01" value="${state.scheme.nightRate}" /></div>
+      </div>
+      <div style="margin-top:8px" class="rate-row">
+        <div><label>Night start hour</label><input id="nightStart" type="number" min="0" max="23" value="${state.scheme.nightStart}" /></div>
+        <div><label>Night end hour</label><input id="nightEnd" type="number" min="0" max="23" value="${state.scheme.nightEnd}" /></div>
+      </div>
+    `;
+  }
+  html += `<div style="margin-top:8px" class="muted small">Grace minutes <input id="graceMinutes" type="number" value="${state.scheme.graceMinutes}" style="width:80px;display:inline-block;margin-left:8px" /></div>`;
+  schemeEditor.innerHTML = html;
+
+  // attach listeners to update state
+  setTimeout(()=> {
+    const get = id => document.getElementById(id);
+    if(get('hourlyRate')) get('hourlyRate').onchange = e => state.scheme.hourlyRate = parseFloat(e.target.value||0);
+    if(get('perMinute')) get('perMinute').onchange = e => state.scheme.perMinute = parseFloat(e.target.value||null);
+    if(get('flatRate')) get('flatRate').onchange = e => state.scheme.flatRate = parseFloat(e.target.value||0);
+    if(get('freeMinutes')) get('freeMinutes').onchange = e => state.scheme.tiered.freeMinutes = parseInt(e.target.value||0);
+    if(get('tierRate')) get('tierRate').onchange = e => state.scheme.tiered.rateAfter = parseFloat(e.target.value||0);
+    if(get('dayRate')) get('dayRate').onchange = e => state.scheme.dayRate = parseFloat(e.target.value||0);
+    if(get('dayCap')) get('dayCap').onchange = e => state.scheme.dayCap = parseFloat(e.target.value||0);
+    if(get('dayRate2')) get('dayRate2').onchange = e => state.scheme.dayRate = parseFloat(e.target.value||0);
+    if(get('nightRate')) get('nightRate').onchange = e => state.scheme.nightRate = parseFloat(e.target.value||0);
+    if(get('nightStart')) get('nightStart').onchange = e => state.scheme.nightStart = parseInt(e.target.value||22);
+    if(get('nightEnd')) get('nightEnd').onchange = e => state.scheme.nightEnd = parseInt(e.target.value||7);
+    if(get('graceMinutes')) get('graceMinutes').onchange = e => state.scheme.graceMinutes = parseInt(e.target.value||0);
+  },50);
+}
+
+schemeType.onchange = renderSchemeEditor;
+renderSchemeEditor();
+
+/* Check-in/out logic */
+btnCheckin.onclick = () => {
+  state.checkin = new Date();
+  state.checkout = null;
+  checkinTimeEl.textContent = state.checkin.toLocaleString();
+  targetLeaveDisplay.textContent = '—';
+  el('targetLeave').value = '';
+  startTicker();
+  updateUI();
+};
+
+btnCheckout.onclick = () => {
+  if(!state.checkin) return alert('Not checked in');
+  state.checkout = new Date();
+  stopTicker();
+  updateUI(true);
+};
+
+btnSave.onclick = () => {
+  if(!state.checkin) return alert('Check in first');
+  const spot = {
+    id: Date.now(),
+    checkin: state.checkin.toISOString(),
+    address: addressInput.value || '',
+    keywords: keywordsInput.value || '',
+    photo: photoPreview.src || '',
+    savedAt: new Date().toISOString()
+  };
+  state.savedSpots.unshift(spot);
+  renderSaved();
+  alert('Spot saved');
+};
+
+function renderSaved(){
+  if(state.savedSpots.length === 0){
+    savedList.textContent = 'No saved spots yet';
+    return;
+  }
+  savedList.innerHTML = state.savedSpots.map(s => {
+    const k = s.keywords ? ' • ' + s.keywords : '';
+    return `<div style="padding:8px;border-bottom:1px solid #f1f6fb">
+      <div style="font-weight:600">${s.address || 'Unnamed spot'}</div>
+      <div class="muted small">${new Date(s.savedAt).toLocaleString()}${k}</div>
+    </div>`;
+  }).join('');
+}
+
+/* Photo input preview */
+photoInput.onchange = e => {
+  const f = e.target.files && e.target.files[0];
+  if(!f) return;
+  const url = URL.createObjectURL(f);
+  photoPreview.src = url;
+  photoPreview.style.display = 'block';
+};
+
+/* Estimate & live fee update */
+let ticker = null;
+function startTicker(){
+  if(ticker) clearInterval(ticker);
+  ticker = setInterval(()=> updateUI(false), 1000);
+}
+function stopTicker(){ if(ticker) clearInterval(ticker); ticker = null; }
+
+function updateUI(final=false){
+  const now = state.checkout ? state.checkout : new Date();
+  if(state.checkin){
+    const elapsedMs = now - state.checkin;
+    elapsedEl.textContent = formatElapsed(elapsedMs);
+    // compute fee from checkin to now
+    const feeRes = computeFee(state.checkin, now, state.scheme);
+    currentFeeEl.textContent = formatMoney(feeRes.total);
+    // show breakdown
+    estimateBreakdown.innerHTML = feeRes.breakdown.map(b => `<div style="display:flex;justify-content:space-between"><div>${b.label}</div><div>${formatMoney(b.amount)}</div></div>`).join('') || '<div class="muted">No charges yet</div>';
+  } else {
+    elapsedEl.textContent = '00:00';
+    currentFeeEl.textContent = '$0.00';
+    estimateBreakdown.innerHTML = '<div class="muted">Not checked in</div>';
+  }
+
+  // target leave estimate
+  const tval = targetLeaveEl.value;
+  if(tval){
+    const t = new Date(tval);
+    targetLeaveDisplay.textContent = t.toLocaleString();
+    if(state.checkin){
+      const est = computeFee(state.checkin, t, state.scheme);
+      const lines = est.breakdown.map(b => `<div style="display:flex;justify-content:space-between"><div>${b.label}</div><div>${formatMoney(b.amount)}</div></div>`).join('');
+      estimateBreakdown.innerHTML = `<div style="font-weight:600">Estimate if leave at ${t.toLocaleString()}</div>` + lines + `<div style="margin-top:8px;font-weight:700">Total ${formatMoney(est.total)}</div>`;
+    }
+  }
+
+  if(final){
+    // show final receipt
+    alert('Checked out. Final fee: ' + currentFeeEl.textContent);
+  }
+}
+
+/* Quick presets */
+document.querySelectorAll('.small-btn[data-min]').forEach(b => {
+  b.onclick = () => {
+    const mins = parseInt(b.dataset.min);
+    const t = new Date();
+    t.setMinutes(t.getMinutes() + mins);
+    targetLeaveEl.value = nowIsoLocal(t);
+    updateUI();
+  };
+});
+
+/* target leave change */
+targetLeaveEl.onchange = e => {
+  state.targetLeave = e.target.value ? new Date(e.target.value) : null;
+  updateUI();
+};
+
+/* Search saved */
+el('searchSaved').oninput = e => {
+  const q = e.target.value.toLowerCase();
+  const filtered = state.savedSpots.filter(s => (s.address + ' ' + s.keywords).toLowerCase().includes(q));
+  if(filtered.length === 0) savedList.innerHTML = '<div class="muted">No matches</div>';
+  else savedList.innerHTML = filtered.map(s => `<div style="padding:8px;border-bottom:1px solid #f1f6fb"><div style="font-weight:600">${s.address || 'Unnamed'}</div><div class="muted small">${new Date(s.savedAt).toLocaleString()}</div></div>`).join('');
+};
+
+/* Initialize */
+updateUI();
+</script>
+</body>
+</html>
