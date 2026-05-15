@@ -1,3 +1,4 @@
+
 <!doctype html>
 <html lang="en">
 <head>
@@ -6,7 +7,7 @@
 <title>Parking Helper</title>
 <style>
   body{font-family:Inter,system-ui; margin:0; background:#f7f9fc; color:#111}
-  .app{max-width:640px;margin:0 auto;padding:0}
+  .app{max-width:640px;margin:0 auto}
   header{background:#0b74de;color:#fff;padding:12px;text-align:center;font-weight:600}
   nav{display:flex;justify-content:space-around;background:#eaf2fb}
   nav button{flex:1;padding:12px;border:none;background:none;font-size:14px;cursor:pointer}
@@ -103,7 +104,10 @@ function formatElapsed(ms){
 function computeFee(start,end,scheme){
   const minutes=Math.ceil((end-start)/60000);
   if(scheme.type==="flat") return scheme.rate;
-  return (scheme.rate/60)*minutes;
+  if(scheme.type==="hourly"){
+    const hours=Math.ceil(minutes/60); // round UP to full hour
+    return scheme.rate*hours;
+  }
 }
 
 function updateUI(){
@@ -113,6 +117,10 @@ function updateUI(){
     el("elapsed").textContent=formatElapsed(now-new Date(state.checkin));
     const fee=computeFee(new Date(state.checkin), now, state.scheme);
     el("currentFee").textContent="$"+fee.toFixed(2);
+  } else {
+    el("checkinTime").textContent="—";
+    el("elapsed").textContent="00:00";
+    el("currentFee").textContent="$0.00";
   }
   el("savedList").innerHTML=state.savedSpots.map(s=>`<div>${s.address} (${s.keywords})</div>`).join("")||"No saved spots yet";
 }
@@ -138,14 +146,14 @@ el("btnSave").onclick=()=>{
   saveState(); updateUI();
 };
 
-/* Tab navigation */
+/* Tab navigation fix */
 document.querySelectorAll("nav button").forEach(btn=>{
-  btn.onclick=()=>{
+  btn.addEventListener("click", ()=>{
     document.querySelectorAll("nav button").forEach(b=>b.classList.remove("active"));
-    btn.classList.add("active");
     document.querySelectorAll("section").forEach(sec=>sec.classList.remove("active"));
+    btn.classList.add("active");
     document.getElementById(btn.dataset.tab).classList.add("active");
-  };
+  });
 });
 </script>
 </body>
